@@ -4,24 +4,35 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"index/suffixarray"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/prashanthpai/shakesearch/pkg/shake"
+)
+
+const (
+	inputFile = "completeworks.txt"
 )
 
 func main() {
-	searcher := Searcher{}
-	err := searcher.Load("completeworks.txt")
+	f, err := os.Open(inputFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("os.Open(%s) failed: %s", inputFile, err.Error())
+	}
+	defer f.Close()
+
+	shakeSearcher := shake.NewSearcher()
+
+	if err := shakeSearcher.Load(f); err != nil {
+		log.Fatalf("shakeSearcher.Load() failed: %s", err.Error())
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
 
-	http.HandleFunc("/search", handleSearch(searcher))
+	http.HandleFunc("/search", handleSearch(shakeSearcher))
+	http.HandleFunc("/filters", handleListFilters(shakeSearcher))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -35,9 +46,9 @@ func main() {
 	}
 }
 
-type Searcher struct {
-	CompleteWorks string
-	SuffixArray   *suffixarray.Index
+type Searcher interface {
+	Search(query string, filter string) []string
+	Filters() []string
 }
 
 func handleSearch(searcher Searcher) func(w http.ResponseWriter, r *http.Request) {
@@ -45,38 +56,43 @@ func handleSearch(searcher Searcher) func(w http.ResponseWriter, r *http.Request
 		query, ok := r.URL.Query()["q"]
 		if !ok || len(query[0]) < 1 {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("missing search query in URL params"))
+			_, _ = w.Write([]byte("missing search query in URL params"))
 			return
 		}
-		results := searcher.Search(query[0])
+
+		var filter string
+		if q, ok := r.URL.Query()["filter"]; ok {
+			if len(q[0]) != 0 {
+				filter = q[0]
+			}
+		}
+
+		results := searcher.Search(query[0], filter)
+
 		buf := &bytes.Buffer{}
-		enc := json.NewEncoder(buf)
-		err := enc.Encode(results)
-		if err != nil {
+		if err := json.NewEncoder(buf).Encode(results); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("encoding failure"))
+			_, _ = w.Write([]byte("encoding failure"))
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(buf.Bytes())
+		_, _ = w.Write(buf.Bytes())
 	}
 }
 
-func (s *Searcher) Load(filename string) error {
-	dat, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("Load: %w", err)
-	}
-	s.CompleteWorks = string(dat)
-	s.SuffixArray = suffixarray.New(dat)
-	return nil
-}
+func handleListFilters(searcher Searcher) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		results := searcher.Filters()
 
-func (s *Searcher) Search(query string) []string {
-	idxs := s.SuffixArray.Lookup([]byte(query), -1)
-	results := []string{}
-	for _, idx := range idxs {
-		results = append(results, s.CompleteWorks[idx-250:idx+250])
+		buf := &bytes.Buffer{}
+		if err := json.NewEncoder(buf).Encode(results); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("encoding failure"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(buf.Bytes())
 	}
-	return results
 }

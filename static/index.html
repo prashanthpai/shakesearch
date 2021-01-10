@@ -1,27 +1,31 @@
 <!doctype html>
-<html class="no-js" lang="">
+<html lang="">
 
-<head>
-  <meta charset="utf-8">
-  <title>ShakeSearch</title>
-  <link rel="stylesheet" href="style.css">
-  <meta name="theme-color" content="#fafafa">
-</head>
+  <head>
+    <meta charset="utf-8">
+    <title>ShakeSearch</title>
+    <link rel="stylesheet" type="text/css" href="pagination.css">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="jquery-1.8.2.min.js"></script>
+    <script src="pagination.min.js"></script>
+  </head>
 
-<body>
-    <p>
-        <form id="form">
-            <label for="query">Query</label>
-            <input type="text" id="query" name="query">
-            <button type="submit">Search</button>
-        </form>
-    </p>
-    <p>
-        <table id="table">
-          <tbody id="table-body"></tbody>
-        </table>
-    </p>
-  <script src="app.js"></script>
-</body>
+  <body>
+    <div id="wrapper">
+      <form id="form">
+        <label for="query">Query</label>
+        <input type="text" id="query" name="query">
+        <label for="filter">Filter by work:</label>
+        <select id="filter" name="filter">
+        </select>
+        <button type="submit">Search</button>
+      </form>
+      <section>
+        <div class="data-container"></div>
+        <div id="pagination-container"></div>
+      </section>
+    </div>
+    <script src="app.js"></script>
+  </body>
 
 </html>

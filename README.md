@@ -29,4 +29,23 @@ We will be primarily evaluating based on how well the search works for users. A 
 current state, can be deployed easily on Heroku's free tier.
 3. In your submission, share with us what changes you made and how you would prioritize changes if you had more time.
 
+## Changelog + Prioritized wishlist
 
+- [X] Fixed out of bound panic in handling of search index.
+- [X] Highlight search query in rendered result.
+- [X] Case insensitive search.
+- [X] Retain whitespace in search results, as in the original corpus.
+- [X] Feature: Search within a specific work.
+- [X] Remove overlapping index in search results to avoid repitition in search results.
+- [X] Feature: Added pagination (client-side, only for usablity, not for perf).
+- [X] Show results starting at a sentence (decent effort, not perfect)
+- [X] Avoid abrupt word cuts in search result ending. And add ellipsis just like Google results.
+- [X] Removed "," separator in search results and add a clear separator in search results.
+- [ ] Unit tests.
+- [ ] Display gracefull error when no match is found.
+- [ ] Support finding a phrase that is split across multiple lines.
+- [ ] Add context to search results such as title of work, act/section, line number.
+- [ ] Add link to rendered work with page anchored at the spot of occurence. Like github's #L feature.
+- [ ] Autocomplete for phrases.
+- [ ] Fuzzy search ("did you mean" feature)
+- [ ] Spellcheck
