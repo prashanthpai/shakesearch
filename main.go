@@ -1,13 +1,15 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"os/signal"
+	"time"
 
+	"github.com/prashanthpai/shakesearch/internal/api"
+	"github.com/prashanthpai/shakesearch/pkg/server"
 	"github.com/prashanthpai/shakesearch/pkg/shake"
 )
 
@@ -22,77 +24,38 @@ func main() {
 	}
 	defer f.Close()
 
+	// create instance of searcher
 	shakeSearcher := shake.NewSearcher()
-
 	if err := shakeSearcher.Load(f); err != nil {
 		log.Fatalf("shakeSearcher.Load() failed: %s", err.Error())
 	}
 
-	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fs)
+	// create HTTP handlers
+	handlers := api.NewHandler(shakeSearcher)
 
-	http.HandleFunc("/search", handleSearch(shakeSearcher))
-	http.HandleFunc("/filters", handleListFilters(shakeSearcher))
-
+	// configure server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3001"
 	}
+	srv := server.New(&server.Config{
+		Addr: fmt.Sprintf(":%s", port),
+	}, handlers)
 
-	fmt.Printf("Listening on port %s...", port)
-	err = http.ListenAndServe(fmt.Sprintf(":%s", port), nil)
-	if err != nil {
-		log.Fatal(err)
+	// start server
+	if err := srv.Start(); err != nil {
+		log.Fatalf("server.Start() failed: %s", err.Error())
 	}
-}
 
-type Searcher interface {
-	Search(query string, filter string) []string
-	Filters() []string
-}
+	// handle shutdown gracefully
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	<-sigCh
+	log.Println("Received interrupt. Shutting down...")
 
-func handleSearch(searcher Searcher) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		query, ok := r.URL.Query()["q"]
-		if !ok || len(query[0]) < 1 {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte("missing search query in URL params"))
-			return
-		}
-
-		var filter string
-		if q, ok := r.URL.Query()["filter"]; ok {
-			if len(q[0]) != 0 {
-				filter = q[0]
-			}
-		}
-
-		results := searcher.Search(query[0], filter)
-
-		buf := &bytes.Buffer{}
-		if err := json.NewEncoder(buf).Encode(results); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("encoding failure"))
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(buf.Bytes())
-	}
-}
-
-func handleListFilters(searcher Searcher) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		results := searcher.Filters()
-
-		buf := &bytes.Buffer{}
-		if err := json.NewEncoder(buf).Encode(results); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("encoding failure"))
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(buf.Bytes())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Stop(ctx); err != nil {
+		log.Fatalf("http.Server.Shutdown() failed: %s\n", err)
 	}
 }

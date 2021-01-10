@@ -22,11 +22,12 @@ type Searcher struct {
 	suffixArray   *suffixarray.Index
 }
 
-func (s *Searcher) Load(r io.Reader) error {
-	b, err := ioutil.ReadAll(r)
+func (s *Searcher) Load(rc io.ReadCloser) error {
+	b, err := ioutil.ReadAll(rc)
 	if err != nil {
 		return fmt.Errorf("ioutil.ReadAll: %w", err)
 	}
+	defer rc.Close()
 
 	s.completeWorks = string(b)
 	// suffixarray.FindAllIndex uses regexp and it would be slower
@@ -112,6 +113,7 @@ func (s *Searcher) Filters() []string {
 	for k := range worksIndex {
 		l = append(l, k)
 	}
+	sort.Strings(l)
 
 	return l
 }
